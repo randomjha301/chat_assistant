@@ -1,0 +1,90 @@
+package com.example.whatsapp_chat_assistant
+
+import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.work.*
+import android.content.Context
+import android.content.Intent
+import android.view.View
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContentView(R.layout.activity_main)
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
+        }
+        startModelDownload(this)
+        WorkManager.getInstance(this)
+            .getWorkInfosForUniqueWorkLiveData("model_download")
+            .observe(this) { workInfoList ->
+                val workInfo = workInfoList.firstOrNull() ?: return@observe
+
+                when (workInfo.state) {
+                    WorkInfo.State.RUNNING -> showLoadingScreen()
+                    WorkInfo.State.SUCCEEDED -> proceedToApp()
+                    WorkInfo.State.FAILED -> showError(getString(R.string.file_corrupted_error))
+                    else -> {}
+                }
+            }
+    }
+
+    fun startModelDownload(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.UNMETERED) // Wi-Fi only
+            .setRequiresStorageNotLow(true)
+            .build()
+
+        val downloadRequest = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "model_download",
+            ExistingWorkPolicy.KEEP, // Don't restart if it's already downloading
+            downloadRequest
+        )
+    }
+
+    private fun showLoadingScreen() {
+        // 1. Find the UI elements from your XML file
+        val statusText = findViewById<TextView>(R.id.statusTextView)
+        val progressBar = findViewById<ProgressBar>(R.id.loadingProgressBar)
+
+        // 2. Update the text and make the spinner visible
+        statusText.setText(R.string.downloading_model)
+        progressBar.visibility = View.VISIBLE
+    }
+
+    private fun proceedToApp() {
+
+        val statusText = findViewById<TextView>(R.id.statusTextView)
+        val progressBar = findViewById<ProgressBar>(R.id.loadingProgressBar)
+
+        statusText.setText(R.string.download_complete)
+        progressBar.visibility = View.GONE // Hides the loading spinner
+    }
+
+    private fun showError(message: String) {
+        // A Toast is a small popup message that appears at the bottom of the screen for a few seconds.
+        Toast.makeText(this, getString(R.string.error_message, message), Toast.LENGTH_LONG).show()
+
+        val statusText = findViewById<TextView>(R.id.statusTextView)
+        val progressBar = findViewById<ProgressBar>(R.id.loadingProgressBar)
+
+
+        statusText.text = getString(R.string.error_message, message)
+        progressBar.visibility = View.GONE
+    }
+
+
+}

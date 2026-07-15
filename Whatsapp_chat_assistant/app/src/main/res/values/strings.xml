@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Whatsapp_chat_assistant</string>
+    <string name="downloading_model">Downloading AI Model...\nPlease keep the app open.</string>
+    <string name="download_complete">Download Complete! Ready to chat.\nYou can close the app now!!</string>
+    <string name="error_message">Error: %1$s</string>
+    <string name="file_corrupted_error">Download failed or file corrupted.</string>
+
+
+
+</resources>
