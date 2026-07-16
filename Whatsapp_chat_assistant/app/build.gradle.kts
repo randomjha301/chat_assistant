@@ -3,12 +3,19 @@ plugins {
 }
 
 android {
+
+
+    compileSdk = 36
+
+    // Specify the exact full version number of your NDK 31
+    ndkVersion = "30.0.15729638"
     namespace = "com.example.whatsapp_chat_assistant"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+//    compileSdk {
+//
+//        version = release(36) {
+//            minorApiLevel = 1
+//        }
+//    }
 
     defaultConfig {
         applicationId = "com.example.whatsapp_chat_assistant"
@@ -30,6 +37,13 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 }
 
