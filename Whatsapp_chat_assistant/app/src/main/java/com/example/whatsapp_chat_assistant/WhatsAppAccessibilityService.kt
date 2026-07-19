@@ -59,7 +59,14 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             // Execute local model inference off the main UI thread
             if (isBound && inferenceService != null) {
                 serviceScope.launch {
-                    val prompt = "Respond to this chat message in Hinglish: $currentMessageText"
+                    val prompt = """
+                        <|im_start|>system
+                        You are a casual WhatsApp user.<|im_end|>
+                        <|im_start|>user
+                        $currentMessageText<|im_end|>
+                        <|im_start|>assistant
+    
+                    """.trimIndent()
 
                     // Call the safe suspension function you built in Phase 2
                     val aiResponse = withContext(Dispatchers.IO) {
@@ -87,7 +94,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             val isIncomingMessage = rect.left < (screenWidth / 2)
 
             node.className == "android.widget.TextView" &&
-                    node.viewIdResourceName != "com.whatsapp:id/entry" &&
+                    !node.isEditable &&
                     isIncomingMessage
         }
     }

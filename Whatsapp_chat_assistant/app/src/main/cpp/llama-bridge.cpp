@@ -6,6 +6,24 @@
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "LlamaBridge", __VA_ARGS__)
 
+
+static void llama_batch_add(
+        struct llama_batch & batch,
+        llama_token   id,
+        llama_pos   pos,
+        const std::vector<llama_seq_id> & seq_ids,
+        bool   logits) {
+    batch.token   [batch.n_tokens] = id;
+    batch.pos     [batch.n_tokens] = pos;
+    batch.n_seq_id[batch.n_tokens] = seq_ids.size();
+    for (size_t i = 0; i < seq_ids.size(); ++i) {
+        batch.seq_id[batch.n_tokens][i] = seq_ids[i];
+    }
+    batch.logits  [batch.n_tokens] = logits;
+    batch.n_tokens++;
+}
+
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_example_whatsapp_1chat_1assistant_LlamaBridge_loadModel(
         JNIEnv *env, jobject thiz, jstring model_path_j) {
@@ -131,41 +149,51 @@ Java_com_example_whatsapp_1chat_1assistant_LlamaBridge_generateResponse(
 
         // B. Check if the model has decided the response is finished (End of Stream)
         const struct llama_vocab * vocab = llama_model_get_vocab(model);
-        if (llama_vocab_is_eog(vocab, new_token_id)) {
-        break;
-    }
+        if (llama_vocab_is_eog(vocab, new_token_id)) break;
 
-    // C. Convert the Token ID back into readable text
-    char piece[32];
-    llama_token_to_piece(vocab, new_token_id, piece, sizeof(piece), 0, true);
+        // C. Convert the Token ID back into readable text
+        char piece[32];
+        int n_chars = llama_token_to_piece(vocab, new_token_id, piece, sizeof(piece), 0, true);
 
-    // --- JNI Boundary ---
-    token_buffer += piece;
-    tokens_buffered++;
+        if (n_chars < 0) {
+            std::string large_piece;
+            large_piece.resize(-n_chars);
 
-    if (tokens_buffered >= flush_threshold) {
-        jstring j_token = env->NewStringUTF(token_buffer.c_str());
-        env->CallObjectMethod(callback, invokeMethod, j_token);
-        env->DeleteLocalRef(j_token); // Prevent JVM memory leaks
+            int actual_size = llama_token_to_piece(vocab, new_token_id, &large_piece[0], large_piece.size(), 0, true);
+            if (actual_size > 0) {
+                token_buffer.append(large_piece.data(), actual_size);
+            }
+        }
+        else if (n_chars > 0) {
+            token_buffer.append(piece, n_chars);
+        }
 
-        token_buffer.clear();
-        tokens_buffered = 0;
-    }
-    // --------------------
+        // --- JNI Boundary ---
+        tokens_buffered++;
 
-    // D. Prepare the engine for the next cycle
-    llama_batch_clear(batch);
+        if (tokens_buffered >= flush_threshold) {
+                jstring j_token = env->NewStringUTF(token_buffer.c_str());
+                env->CallObjectMethod(callback, invokeMethod, j_token);
+                env->DeleteLocalRef(j_token); // Prevent JVM memory leaks
 
-    // We only feed the newly generated token back into the engine, not the whole prompt
-    llama_batch_add(batch, new_token_id, n_cur, {0}, true);
+                token_buffer.clear();
+                tokens_buffered = 0;
+        }
+        // --------------------
 
-    // E. Evaluate the new token
-    if (llama_decode(ctx, batch) != 0) {
-        LOGI("llama_decode failed during generation");
-        break;
-    }
+        // D. Prepare the engine for the next cycle
+        batch.n_tokens = 0;
 
-    n_cur++;
+        // We only feed the newly generated token back into the engine, not the whole prompt
+        llama_batch_add(batch, new_token_id, n_cur, {0}, true);
+
+        // E. Evaluate the new token
+        if (llama_decode(ctx, batch) != 0) {
+                LOGI("llama_decode failed during generation");
+                break;
+        }
+
+        n_cur++;
     }
 
     // Flush any remaining tokens at the end
