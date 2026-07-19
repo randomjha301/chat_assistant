@@ -52,8 +52,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (true) {
-            Log.d(TAG, "isModelReady check bypassed (true), proceeding to app")
+        if (isModelReady()) {
+            Log.d(TAG, "isModelReady check bypassed , proceeding to app")
             proceedToApp()
         } else {
             Log.d(TAG, "Starting model download...")
