@@ -28,7 +28,7 @@ class ModelDownloadWorker(
 
         val modelUrl = "https://huggingface.co/letterbox38/qwen_hinglish_chat_model/resolve/main/hinglish-qwen-3b-unsloth-Q4_K_M.gguf?download=true"
         val expectedHash = "d415787f61aa2fa68037f8dd03c7c67f4f13740f9cf30ad0bf357defa8f3c982"
-        val outputFile = File(context.filesDir, "qwen3b-q4_k_m.gguf")
+        val outputFile = File(context.filesDir, "hinglish-qwen-3b-unsloth-Q4_K_M.gguf")
 
         // 2. Configure OkHttpClient with infinite timeouts for large files
         val client = OkHttpClient.Builder()

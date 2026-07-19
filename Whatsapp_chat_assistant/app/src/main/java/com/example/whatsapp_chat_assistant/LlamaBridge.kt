@@ -1,13 +1,20 @@
 package com.example.whatsapp_chat_assistant
 
+import android.util.Log
+
 object LlamaBridge {
     init {
-
-        System.loadLibrary("ggml-base")
-        System.loadLibrary("ggml-cpu")
-        System.loadLibrary("ggml")
-        System.loadLibrary("llama")
-        System.loadLibrary("llama-bridge")
+        try {
+            Log.d("LlamaBridge", "Loading libraries...")
+            System.loadLibrary("ggml-base")
+            System.loadLibrary("ggml-cpu")
+            System.loadLibrary("ggml")
+            System.loadLibrary("llama")
+            System.loadLibrary("llama-bridge")
+            Log.d("LlamaBridge", "Libraries loaded successfully")
+        } catch (e: Exception) {
+            Log.e("LlamaBridge", "Error loading libraries: ${e.message}")
+        }
     }
 
 

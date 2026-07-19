@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -15,14 +16,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Whatsapp_chat_assistant">
         <service
-            android:name=".WhatsAppAccessibilityService"
+            android:name="com.example.whatsapp_chat_assistant.WhatsAppAccessibilityService"
+            android:label="WhatsApp Chat Assistant"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.view.accessibility.AccessibilityService" />
+                <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
             <meta-data
-                android:name="android.view.accessibility.accessibilityservice"
+                android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
         <service

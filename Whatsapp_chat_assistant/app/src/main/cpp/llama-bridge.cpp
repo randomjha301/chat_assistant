@@ -29,10 +29,17 @@ Java_com_example_whatsapp_1chat_1assistant_LlamaBridge_loadModel(
         JNIEnv *env, jobject thiz, jstring model_path_j) {
 
     const char *model_path = env->GetStringUTFChars(model_path_j, nullptr);
+    LOGI("loadModel: Attempting to load model from %s", model_path);
 
     llama_model_params model_params = llama_model_default_params();
 
     llama_model *model = llama_load_model_from_file(model_path, model_params);
+
+    if (model == nullptr) {
+        LOGI("loadModel: Failed to load model from %s", model_path);
+    } else {
+        LOGI("loadModel: Successfully loaded model at %p", model);
+    }
 
     env->ReleaseStringUTFChars(model_path_j, model_path);
     return reinterpret_cast<jlong>(model);
@@ -91,13 +98,24 @@ Java_com_example_whatsapp_1chat_1assistant_LlamaBridge_generateResponse(
         JNIEnv *env, jobject thiz, jlong model_ptr, jstring prompt_j, jobject callback) {
 
     llama_model *model = reinterpret_cast<llama_model *>(model_ptr);
+    if (model == nullptr) {
+        LOGI("generateResponse: Error - model_ptr is null");
+        return;
+    }
+
     llama_context_params ctx_params = llama_context_default_params();
     ctx_params.n_ctx = 2048;
 
+    LOGI("generateResponse: Creating new context...");
     llama_context *ctx = llama_new_context_with_model(model, ctx_params);
+    if (ctx == nullptr) {
+        LOGI("generateResponse: Error - failed to create context");
+        return;
+    }
 
     const char *prompt_c = env->GetStringUTFChars(prompt_j, nullptr);
     std::string prompt(prompt_c);
+    LOGI("generateResponse: Prompt received, length: %zu", prompt.length());
     env->ReleaseStringUTFChars(prompt_j, prompt_c);
 
 
@@ -108,17 +126,21 @@ Java_com_example_whatsapp_1chat_1assistant_LlamaBridge_generateResponse(
     // The sampler determines how we pick the next token from the model's probabilities.
     llama_sampler_chain_params sampler_params = llama_sampler_chain_default_params();
     llama_sampler *sampler = llama_sampler_chain_init(sampler_params);
+    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(64, 1.1f, 1.0f, 1.0f));
     llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.8f)); // Temperature
     llama_sampler_chain_add(sampler, llama_sampler_init_min_p(0.05f, 1)); // Min-P sampling
-
+    llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
     // --- 2. Tokenize the Prompt ---
     // You must convert the user's std::string prompt into a vector of integer Token IDs.
     // (Assuming you have a helper function `tokenize` that wraps llama_tokenize)
+    LOGI("generateResponse: Tokenizing prompt...");
     std::vector<llama_token> prompt_tokens = tokenize(model, prompt, true);
+    LOGI("generateResponse: Prompt tokenized into %zu tokens", prompt_tokens.size());
 
     // --- 3. The Prefill Phase (Batching) ---
     // A batch holds the tokens we want the engine to evaluate.
-    llama_batch batch = llama_batch_init(512, 0, 1);
+    int batch_size = std::max(512, (int)prompt_tokens.size());
+    llama_batch batch = llama_batch_init(batch_size, 0, 1);
 
     // Feed the entire prompt into the batch at once for parallel processing
     for (size_t i = 0; i < prompt_tokens.size(); i++) {
@@ -128,12 +150,15 @@ Java_com_example_whatsapp_1chat_1assistant_LlamaBridge_generateResponse(
     }
 
     // Evaluate the initial prompt
+    LOGI("generateResponse: Decoding (prefill)...");
     if (llama_decode(ctx, batch) != 0) {
         LOGI("llama_decode failed during prefill");
         llama_batch_free(batch);
         llama_sampler_free(sampler);
+        llama_free(ctx);
         return;
     }
+    LOGI("generateResponse: Prefill complete");
 
     int n_cur = prompt_tokens.size(); // Track our position in the context window
     int n_predict = 512; // Maximum tokens to generate
@@ -144,12 +169,17 @@ Java_com_example_whatsapp_1chat_1assistant_LlamaBridge_generateResponse(
     int tokens_buffered = 0;
 
     for (int i = 0; i < n_predict; i++) {
+
+        LOGI("iteration no: %d",i);
         // A. Sample the next token ID based on the last llama_decode
         llama_token new_token_id = llama_sampler_sample(sampler, ctx, -1);
-
+        llama_sampler_accept(sampler, new_token_id);
         // B. Check if the model has decided the response is finished (End of Stream)
         const struct llama_vocab * vocab = llama_model_get_vocab(model);
-        if (llama_vocab_is_eog(vocab, new_token_id)) break;
+        if (llama_vocab_is_eog(vocab, new_token_id)) {
+            LOGI("generateResponse: EOG token detected at iteration %d", i);
+            break;
+        }
 
         // C. Convert the Token ID back into readable text
         char piece[32];
